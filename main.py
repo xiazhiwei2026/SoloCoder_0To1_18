@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, simpledialog, messagebox
 from PIL import Image, ImageTk, ImageDraw
 import numpy as np
 from scipy.interpolate import CubicSpline
+from scipy import ndimage
 import sys
 import os
 
@@ -235,6 +236,9 @@ class ImageProcessor:
         self.gamma_lut = None
         self.threshold_value = 128
         
+        self._orig_tk_image = None
+        self._proc_tk_image = None
+        
         self._create_ui()
         
     def _create_ui(self):
@@ -285,10 +289,10 @@ class ImageProcessor:
                 
     def _display_images(self):
         if self.original_image:
-            self._display_on_canvas(self.original_image, self.orig_canvas)
+            self._orig_tk_image = self._display_on_canvas(self.original_image, self.orig_canvas)
             
         if self.processed_image:
-            self._display_on_canvas(self.processed_image, self.proc_canvas)
+            self._proc_tk_image = self._display_on_canvas(self.processed_image, self.proc_canvas)
             
     def _display_on_canvas(self, image, canvas):
         canvas_width = canvas.winfo_width()
@@ -305,10 +309,12 @@ class ImageProcessor:
         new_height = int(img_height * scale)
         
         resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        self._tk_image = ImageTk.PhotoImage(resized)
+        tk_image = ImageTk.PhotoImage(resized)
         
         canvas.delete("all")
-        canvas.create_image(canvas_width // 2, canvas_height // 2, image=self._tk_image, anchor=tk.CENTER)
+        canvas.create_image(canvas_width // 2, canvas_height // 2, image=tk_image, anchor=tk.CENTER)
+        
+        return tk_image
         
     def _open_gamma_editor(self):
         if self.original_image is None:
@@ -362,7 +368,6 @@ class ImageProcessor:
             
         dialog = tk.Toplevel(self.root)
         dialog.title("Morphological Operation")
-        dialog.geometry("300x200")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -377,7 +382,7 @@ class ImageProcessor:
         ]
         
         for text, value in operations:
-            ttk.Radiobutton(dialog, text=text, variable=operation_var, value=value).pack(anchor=tk.W, padx=20)
+            ttk.Radiobutton(dialog, text=text, variable=operation_var, value=value).pack(anchor=tk.W, padx=20, pady=2)
             
         kernel_frame = ttk.Frame(dialog)
         kernel_frame.pack(pady=10)
@@ -396,6 +401,9 @@ class ImageProcessor:
             dialog.destroy()
             
         ttk.Button(dialog, text="Apply", command=apply_operation).pack(pady=10)
+        
+        dialog.update_idletasks()
+        dialog.minsize(dialog.winfo_width(), dialog.winfo_height())
         
         self.root.wait_window(dialog)
         
@@ -430,41 +438,18 @@ class ImageProcessor:
         self.status_var.set(f"{op_names[operation]} applied (kernel: {kernel_size}x{kernel_size}, backend: {backend}).")
         
     def _python_morphology(self, img_array, operation, kernel_size):
-        half = kernel_size // 2
-        height, width = img_array.shape
-        result = np.zeros_like(img_array)
+        kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
         
         if operation == 'erode':
-            for y in range(height):
-                for x in range(width):
-                    min_val = 255
-                    for ky in range(-half, half + 1):
-                        for kx in range(-half, half + 1):
-                            py = y + ky
-                            px = x + kx
-                            if 0 <= py < height and 0 <= px < width:
-                                min_val = min(min_val, img_array[py, px])
-                    result[y, x] = min_val
-                    
+            result = ndimage.grey_erosion(img_array, footprint=kernel)
         elif operation == 'dilate':
-            for y in range(height):
-                for x in range(width):
-                    max_val = 0
-                    for ky in range(-half, half + 1):
-                        for kx in range(-half, half + 1):
-                            py = y + ky
-                            px = x + kx
-                            if 0 <= py < height and 0 <= px < width:
-                                max_val = max(max_val, img_array[py, px])
-                    result[y, x] = max_val
-                    
+            result = ndimage.grey_dilation(img_array, footprint=kernel)
         elif operation == 'open':
-            eroded = self._python_morphology(img_array, 'erode', kernel_size)
-            result = self._python_morphology(eroded, 'dilate', kernel_size)
-            
+            result = ndimage.grey_opening(img_array, footprint=kernel)
         elif operation == 'close':
-            dilated = self._python_morphology(img_array, 'dilate', kernel_size)
-            result = self._python_morphology(dilated, 'erode', kernel_size)
+            result = ndimage.grey_closing(img_array, footprint=kernel)
+        else:
+            result = img_array
             
         return result
         
