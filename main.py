@@ -11,9 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'morphology'))
 try:
     import morphology_cpp
     HAS_CPP_MODULE = True
-except ImportError:
+except (ImportError, ValueError, RuntimeError) as e:
     HAS_CPP_MODULE = False
-    print("Warning: C++ morphology module not found. Using fallback Python implementation.")
+    print(f"Warning: C++ morphology module not available ({type(e).__name__}: {e}). Using fallback Python implementation.")
 
 
 class GammaCurveEditor(tk.Toplevel):
