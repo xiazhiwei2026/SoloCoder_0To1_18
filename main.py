@@ -3,18 +3,22 @@ from tkinter import ttk, filedialog, simpledialog, messagebox
 from PIL import Image, ImageTk, ImageDraw
 import numpy as np
 from scipy.interpolate import CubicSpline
-from scipy import ndimage
 import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'morphology'))
 
+MORPHOLOGY_CPP_AVAILABLE = False
+morphology_cpp = None
+_morphology_error = None
+
 try:
     import morphology_cpp
-    HAS_CPP_MODULE = True
+    MORPHOLOGY_CPP_AVAILABLE = True
 except (ImportError, ValueError, RuntimeError) as e:
-    HAS_CPP_MODULE = False
-    print(f"Warning: C++ morphology module not available ({type(e).__name__}: {e}). Using fallback Python implementation.")
+    _morphology_error = f"{type(e).__name__}: {e}"
+    print(f"Error: C++ morphology module not available. Morphology operations will not work.")
+    print(f"Details: {_morphology_error}")
 
 
 class GammaCurveEditor(tk.Toplevel):
@@ -366,6 +370,14 @@ class ImageProcessor:
             messagebox.showwarning("Warning", "Please apply threshold first.")
             return
             
+        if not MORPHOLOGY_CPP_AVAILABLE:
+            error_msg = "C++ morphology module is not available.\n\n"
+            error_msg += "Please compile the C++ module first.\n\n"
+            if _morphology_error:
+                error_msg += f"Error details: {_morphology_error}"
+            messagebox.showerror("Error", error_msg)
+            return
+            
         dialog = tk.Toplevel(self.root)
         dialog.title("Morphological Operation")
         dialog.transient(self.root)
@@ -418,40 +430,20 @@ class ImageProcessor:
         flat_image = img_array.flatten()
         
         op_map = {
-            'erode': morphology_cpp.MorphologyOp.ERODE if HAS_CPP_MODULE else None,
-            'dilate': morphology_cpp.MorphologyOp.DILATE if HAS_CPP_MODULE else None,
-            'open': morphology_cpp.MorphologyOp.OPEN if HAS_CPP_MODULE else None,
-            'close': morphology_cpp.MorphologyOp.CLOSE if HAS_CPP_MODULE else None
+            'erode': morphology_cpp.MorphologyOp.ERODE,
+            'dilate': morphology_cpp.MorphologyOp.DILATE,
+            'open': morphology_cpp.MorphologyOp.OPEN,
+            'close': morphology_cpp.MorphologyOp.CLOSE
         }
         
-        if HAS_CPP_MODULE:
-            result = morphology_cpp.morphology_operation(flat_image, width, height, op_map[operation], kernel_size)
-            result_array = np.array(result).reshape(height, width)
-        else:
-            result_array = self._python_morphology(img_array, operation, kernel_size)
+        result = morphology_cpp.morphology_operation(flat_image, width, height, op_map[operation], kernel_size)
+        result_array = np.array(result).reshape(height, width)
             
         self.processed_image = Image.fromarray(result_array.astype(np.uint8))
         
         self._display_images()
         op_names = {'erode': 'Erosion', 'dilate': 'Dilation', 'open': 'Opening', 'close': 'Closing'}
-        backend = "C++" if HAS_CPP_MODULE else "Python"
-        self.status_var.set(f"{op_names[operation]} applied (kernel: {kernel_size}x{kernel_size}, backend: {backend}).")
-        
-    def _python_morphology(self, img_array, operation, kernel_size):
-        kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
-        
-        if operation == 'erode':
-            result = ndimage.grey_erosion(img_array, footprint=kernel)
-        elif operation == 'dilate':
-            result = ndimage.grey_dilation(img_array, footprint=kernel)
-        elif operation == 'open':
-            result = ndimage.grey_opening(img_array, footprint=kernel)
-        elif operation == 'close':
-            result = ndimage.grey_closing(img_array, footprint=kernel)
-        else:
-            result = img_array
-            
-        return result
+        self.status_var.set(f"{op_names[operation]} applied (kernel: {kernel_size}x{kernel_size}, backend: C++).")
         
     def _reset(self):
         if self.original_image:
