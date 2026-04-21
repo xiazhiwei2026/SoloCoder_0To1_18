@@ -383,6 +383,9 @@ class ISPBlock:
             fill='green', outline='black'
         )
         
+        self.canvas.tag_raise(self.input_port_id)
+        self.canvas.tag_raise(self.output_port_id)
+        
     def get_input_port_pos(self):
         x1 = self.x - self.BLOCK_WIDTH // 2
         return (x1, self.y)
@@ -401,12 +404,12 @@ class ISPBlock:
     def contains_input_port(self, x, y):
         px, py = self.get_input_port_pos()
         dist = ((x - px) ** 2 + (y - py) ** 2) ** 0.5
-        return dist <= self.PORT_RADIUS + 5
+        return dist <= self.PORT_RADIUS + 12
         
     def contains_output_port(self, x, y):
         px, py = self.get_output_port_pos()
         dist = ((x - px) ** 2 + (y - py) ** 2) ** 0.5
-        return dist <= self.PORT_RADIUS + 5
+        return dist <= self.PORT_RADIUS + 12
 
 
 class ISPConnection:
@@ -431,6 +434,8 @@ class ISPConnection:
             x1, y1, mid_x, y1, mid_x, y2, x2, y2,
             smooth=True, fill='black', width=2
         )
+        
+        self.canvas.tag_raise(self.id)
         
     def contains_point(self, x, y, threshold=10):
         x1, y1 = self.from_block.get_output_port_pos()
