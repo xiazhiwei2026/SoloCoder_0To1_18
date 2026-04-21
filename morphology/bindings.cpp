@@ -29,4 +29,38 @@ PYBIND11_MODULE(morphology_cpp, m) {
         
         return output;
     }, py::arg("image"), py::arg("width"), py::arg("height"), py::arg("op"), py::arg("kernel_size") = 3);
+
+    m.def("gaussian_filter", [](py::array_t<uint8_t> image, int width, int height, int kernel_size, double sigma) -> py::array_t<uint8_t> {
+        py::buffer_info buf = image.request();
+        if (buf.ndim != 1) {
+            throw std::runtime_error("Input should be a 1D array");
+        }
+        
+        std::vector<uint8_t> image_vec(static_cast<uint8_t*>(buf.ptr), static_cast<uint8_t*>(buf.ptr) + buf.size);
+        
+        auto result = gaussian_filter(image_vec, width, height, kernel_size, sigma);
+        
+        py::array_t<uint8_t> output(result.size());
+        py::buffer_info out_buf = output.request();
+        std::copy(result.begin(), result.end(), static_cast<uint8_t*>(out_buf.ptr));
+        
+        return output;
+    }, py::arg("image"), py::arg("width"), py::arg("height"), py::arg("kernel_size") = 3, py::arg("sigma") = 1.0);
+
+    m.def("gaussian_filter_rgb", [](py::array_t<uint8_t> image, int width, int height, int kernel_size, double sigma) -> py::array_t<uint8_t> {
+        py::buffer_info buf = image.request();
+        if (buf.ndim != 1) {
+            throw std::runtime_error("Input should be a 1D array");
+        }
+        
+        std::vector<uint8_t> image_vec(static_cast<uint8_t*>(buf.ptr), static_cast<uint8_t*>(buf.ptr) + buf.size);
+        
+        auto result = gaussian_filter_rgb(image_vec, width, height, kernel_size, sigma);
+        
+        py::array_t<uint8_t> output(result.size());
+        py::buffer_info out_buf = output.request();
+        std::copy(result.begin(), result.end(), static_cast<uint8_t*>(out_buf.ptr));
+        
+        return output;
+    }, py::arg("image"), py::arg("width"), py::arg("height"), py::arg("kernel_size") = 3, py::arg("sigma") = 1.0);
 }
