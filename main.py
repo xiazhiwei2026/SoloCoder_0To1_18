@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, simpledialog, messagebox
 from PIL import Image, ImageTk, ImageDraw
 import numpy as np
 from scipy.interpolate import CubicSpline
+from functools import partial
 import sys
 import os
 
@@ -612,7 +613,7 @@ class ISPEditorWindow(tk.Toplevel):
         for conn in self.connections:
             if conn.contains_point(x, y):
                 menu = tk.Menu(self, tearoff=0)
-                menu.add_command(label="Disconnect", command=lambda: self._disconnect(conn))
+                menu.add_command(label="Disconnect", command=partial(self._disconnect, conn))
                 menu.tk_popup(event.x_root, event.y_root)
                 return
                 
